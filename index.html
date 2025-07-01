@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <title>Edit Tree</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+        Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      background-color: #fff;
+      color: #333;
+      padding: 2rem;
+      margin: auto;
+    }
+
+      h2 {
+      margin-top: 0;
+    }
+
+    .toolbar {
+      margin-bottom: 10px;
+    }
+    button {
+      background-color: transparent;
+      border: 1px solid #ccc;
+      padding: 0.4rem 0.8rem;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s ease;
+    }
+
+        button:hover {
+      background-color: #eee;
+    }
+
+    .node-input {
+      display: flex;
+      align-items: center;
+      margin-top: 5px;
+    }
+    input[type="text"] {
+      width: 200px;
+      padding: 5px;
+      margin-right: 5px;
+    }
+    #treeOutput {
+      white-space: pre;
+      background-color: #f9f9f9;
+      padding: 1rem;
+      overflow-x: auto;
+      margin-top: 1rem;
+      font-family: monospace;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Edit Generated Directory Tree</h2>
+
+<div class="toolbar">
+  <button onclick="reset()">Reset</button>
+</div>
+
+<div id="treeBuilder"></div>
+
+<pre id="treeOutput"></pre>
+<button onclick="copyToClipboard()">Copy</button>
+
+<script>
+  let rootNodes = [{ name: '', children: [] }]; // 初始一个根节点
+
+  function createInputRow(node, parentArray, depth = 0) {
+    const div = document.createElement('div');
+    div.className = 'node-input';
+    div.style.marginLeft = (depth * 20) + 'px';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Input Content';
+    input.value = node.name;
+
+    input.oninput = () => {
+      node.name = input.value.trim();
+      updateTreeOutput();
+    };
+
+    const btnAdd = document.createElement('button');
+    btnAdd.textContent = '+';
+    btnAdd.onclick = () => {
+      const newNode = { name: '', children: [] };
+      node.children.push(newNode);
+
+      // 找出当前层级已有的所有子项行（下一层级）
+      const siblings = [];
+      let next = div.nextSibling;
+      while (next) {
+        if (next.classList?.contains('node-input')) {
+          const currentDepth = parseInt(next.style.marginLeft || '0') / 20;
+          if (currentDepth === depth + 1) {
+            siblings.push(next);
+          } else if (currentDepth <= depth) {
+            break;
+          }
+        }
+        next = next.nextSibling;
+      }
+
+      // 创建新行并插入到最后一个子项后面
+      const newDiv = createInputRow(newNode, node.children, depth + 1);
+      if (siblings.length > 0) {
+        const lastChildRow = siblings[siblings.length - 1];
+        lastChildRow.parentNode.insertBefore(newDiv, lastChildRow.nextSibling);
+      } else {
+        div.parentNode.insertBefore(newDiv, div.nextSibling);
+      }
+
+      updateTreeOutput();
+    };
+
+    const btnRemove = document.createElement('button');
+    btnRemove.textContent = '-';
+    btnRemove.style.marginLeft = '5px';
+    btnRemove.onclick = () => {
+      // 如果是根节点中的第一个节点，则不允许删除
+      if (parentArray === rootNodes && parentArray.indexOf(node) === 0) {
+        return;
+      }
+
+      const index = parentArray.indexOf(node);
+      if (index > -1) {
+        parentArray.splice(index, 1);
+      }
+
+      removeSubRows(div);
+      updateTreeOutput();
+    };
+
+    div.appendChild(input);
+    div.appendChild(btnAdd);
+    div.appendChild(btnRemove);
+
+    return div;
+  }
+
+  function removeSubRows(startRow) {
+    let next = startRow.nextSibling;
+    while (next && next.classList?.contains('node-input')) {
+      const currentDepth = parseInt(next.style.marginLeft || '0') / 20;
+      const thisDepth = parseInt(startRow.style.marginLeft || '0') / 20;
+      if (currentDepth <= thisDepth) break;
+      const temp = next;
+      next = next.nextSibling;
+      temp.remove();
+    }
+    startRow.remove();
+  }
+
+  function updateTreeOutput() {
+    const output = document.getElementById('treeOutput');
+    output.textContent = generateTreeTextFromStructure(rootNodes);
+  }
+
+  function generateTreeTextFromStructure(nodes) {
+    const lines = [];
+
+    function buildLines(children, prefix = '', isLastParent = false, depth = 0) {
+      for (let i = 0; i < children.length; i++) {
+        const node = children[i];
+        const isLast = i === children.length - 1;
+
+        // 根节点无前缀
+        if (depth === 0) {
+          lines.push(node.name); // 只显示名称
+          if (node.children && node.children.length > 0) {
+            buildLines(node.children, '', false, depth + 1);
+          }
+        } else {
+          const linePrefix = isLast ? '└── ' : '├── ';
+          lines.push(prefix + linePrefix + node.name);
+
+          const childPrefix = isLast
+            ? prefix + '    '
+            : prefix + '│   ';
+
+          if (node.children && node.children.length > 0) {
+            buildLines(node.children, childPrefix, isLast, depth + 1);
+          }
+        }
+      }
+    }
+
+    buildLines(nodes, '', false, 0);
+    return lines.join('\n');
+  }
+
+  function copyToClipboard() {
+    const text = document.getElementById('treeOutput').textContent;
+    navigator.clipboard.writeText(text).then(() => alert('已复制到剪贴板！'));
+  }
+
+  function reset() {
+    rootNodes = [{ name: '', children: [] }];
+    const container = document.getElementById('treeBuilder');
+    container.innerHTML = '';
+    const firstRow = createInputRow(rootNodes[0], rootNodes, 0);
+    container.appendChild(firstRow);
+    updateTreeOutput();
+  }
+
+  function rebuildUIFromTree() {
+    const container = document.getElementById('treeBuilder');
+    container.innerHTML = '';
+
+    function buildNode(node, depth) {
+      const div = createInputRow(node, rootNodes, depth);
+      container.appendChild(div);
+      for (const child of node.children) {
+        buildNode(child, depth + 1);
+      }
+      return div;
+    }
+
+    for (const node of rootNodes) {
+      buildNode(node, 0);
+    }
+  }
+
+  // 初始化
+  reset();
+</script>
+
+</body>
+</html>
