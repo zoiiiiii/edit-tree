@@ -197,7 +197,7 @@
 
   function copyToClipboard() {
     const text = document.getElementById('treeOutput').textContent;
-    navigator.clipboard.writeText(text).then(() => alert('已复制到剪贴板！'));
+    navigator.clipboard.writeText(text).then();
   }
 
   function reset() {
